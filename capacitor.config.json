@@ -1,0 +1,10 @@
+{
+  "appId": "com.example.httparraybuffer",
+  "appName": "HttpArrayBufferRepro",
+  "webDir": "www",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

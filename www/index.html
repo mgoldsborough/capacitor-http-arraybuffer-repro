@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CapacitorHttp binary body repro</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 16px; }
+      button { font-size: 18px; padding: 10px 16px; }
+      pre { white-space: pre-wrap; word-break: break-all; background: #f3f3f3; padding: 8px; }
+      .ok { color: #0a7a2f; } .bad { color: #b00020; }
+    </style>
+  </head>
+  <body>
+    <h1>CapacitorHttp binary body repro</h1>
+    <p>
+      POSTs the same 8 bytes to an echo server four ways and shows what the server received.
+      Expected for every case: <code>1f8b0800ff00807f</code>.
+    </p>
+    <button id="run">Run</button>
+    <pre id="out">Tap Run.</pre>
+    <script>
+      // gzip-like bytes that are not valid UTF-8.
+      const BYTES = [0x1f, 0x8b, 0x08, 0x00, 0xff, 0x00, 0x80, 0x7f];
+      const EXPECTED = "1f8b0800ff00807f";
+      const ECHO = "https://httpbin.org/anything";
+
+      const hex = (bytes) => [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+
+      // httpbin echoes a binary body as a base64 data URL in `data`; a text body as plain text.
+      const receivedHex = (data) => {
+        if (typeof data === "string" && data.startsWith("data:")) {
+          const bin = atob(data.split(",")[1]);
+          return hex([...bin].map((c) => c.charCodeAt(0)));
+        }
+        return hex(new TextEncoder().encode(data));
+      };
+
+      async function send(label, fetchFn, body, contentType = "application/octet-stream") {
+        try {
+          const res = await fetchFn(ECHO, {
+            method: "POST",
+            headers: { "Content-Type": contentType },
+            body,
+          });
+          const json = await res.json();
+          const got = receivedHex(json.data);
+          const ok = got === EXPECTED;
+          return { label, ok, line: `${ok ? "PASS" : "FAIL"} ${label}\n  sent     ${EXPECTED}\n  received ${got}  (raw: ${JSON.stringify(json.data)})` };
+        } catch (e) {
+          return { label, ok: false, line: `FAIL ${label}\n  error: ${e}` };
+        }
+      }
+
+      document.getElementById("run").addEventListener("click", async () => {
+        const out = document.getElementById("out");
+        out.textContent = "Running…";
+        const patched = window.fetch;
+        const original = window.CapacitorWebFetch;
+        const results = [
+          await send("fetch (CapacitorHttp patch), ArrayBuffer body", patched, new Uint8Array(BYTES).buffer),
+          await send("fetch (CapacitorHttp patch), Uint8Array body", patched, new Uint8Array(BYTES)),
+          // The shape the Amplitude browser SDK sends: gzip bytes as an ArrayBuffer, labeled JSON.
+          await send("fetch (CapacitorHttp patch), ArrayBuffer body, Content-Type: application/json", patched, new Uint8Array(BYTES).buffer, "application/json"),
+        ];
+        if (typeof original === "function") {
+          results.push(await send("window.CapacitorWebFetch (control), ArrayBuffer body", original, new Uint8Array(BYTES).buffer));
+        }
+        out.innerHTML = results
+          .map((r) => `<span class="${r.ok ? "ok" : "bad"}">${r.line.replace(/</g, "&lt;")}</span>`)
+          .join("\n\n");
+        window.__reproResults = results;
+      });
+    </script>
+  </body>
+</html>

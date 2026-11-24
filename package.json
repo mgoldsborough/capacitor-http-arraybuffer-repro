@@ -1,0 +1,14 @@
+{
+  "name": "capacitor-http-arraybuffer-repro",
+  "private": true,
+  "version": "1.0.0",
+  "description": "CapacitorHttp sends ArrayBuffer request bodies as {} and corrupts non-UTF-8 Uint8Array bodies",
+  "dependencies": {
+    "@capacitor/android": "8.6.2",
+    "@capacitor/core": "8.6.2",
+    "@capacitor/ios": "8.6.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.2"
+  }
+}
